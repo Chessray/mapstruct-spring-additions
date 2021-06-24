@@ -9,6 +9,7 @@ import java.io.Writer;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 
 import static java.util.stream.Collectors.toList;
 import static javax.lang.model.element.Modifier.*;
@@ -54,7 +55,7 @@ public class ConversionServiceAdapterGenerator {
     private static ParameterSpec buildConstructorParameterSpec(final ConversionServiceAdapterDescriptor descriptor, final FieldSpec conversionServiceFieldSpec) {
         final ParameterSpec.Builder parameterBuilder = ParameterSpec.builder(conversionServiceFieldSpec.type, conversionServiceFieldSpec.name, FINAL);
         if (StringUtils.isNotEmpty(descriptor.getConversionServiceBeanName())) {
-            parameterBuilder.addAnnotation(buildQualifierANnotation(descriptor));
+            parameterBuilder.addAnnotation(buildQualifierAnotation(descriptor));
         }
         if (Boolean.TRUE.equals(descriptor.isLazyAnnotatedConversionServiceBean())) {
             parameterBuilder.addAnnotation(buildLazyAnnotation());
@@ -62,7 +63,7 @@ public class ConversionServiceAdapterGenerator {
         return parameterBuilder.build();
     }
 
-    private static AnnotationSpec buildQualifierANnotation(ConversionServiceAdapterDescriptor descriptor) {
+    private static AnnotationSpec buildQualifierAnotation(ConversionServiceAdapterDescriptor descriptor) {
         return AnnotationSpec
                 .builder(ClassName.get("org.springframework.beans.factory.annotation", "Qualifier"))
                 .addMember("value", "$S", descriptor.getConversionServiceBeanName())
@@ -89,7 +90,8 @@ public class ConversionServiceAdapterGenerator {
     private static Iterable<MethodSpec> buildMappingMethods(
             final ConversionServiceAdapterDescriptor descriptor,
             final FieldSpec injectedConversionServiceFieldSpec) {
-        return descriptor.getFromToMappings().stream()
+
+        List<MethodSpec> mapList =  descriptor.getFromToMappings().stream()
                 .map(
                         sourceTargetPair -> {
                             final ParameterSpec sourceParameterSpec =
@@ -103,13 +105,37 @@ public class ConversionServiceAdapterGenerator {
                                     .addModifiers(PUBLIC)
                                     .returns(sourceTargetPair.getRight())
                                     .addStatement(
-                                            "return $N.convert($N, $T.class)",
+                                            "return $N.map($N, $T.class)",
                                             injectedConversionServiceFieldSpec,
                                             sourceParameterSpec,
                                             rawType(sourceTargetPair.getRight()))
                                     .build();
                         })
                 .collect(toList());
+
+        List<MethodSpec> revMapList =  descriptor.getFromToMappings().stream()
+                .map(
+                        sourceTargetPair -> {
+                            final ParameterSpec sourceParameterSpec =
+                                    buildSourceParameterSpec(sourceTargetPair.getRight());
+                            return MethodSpec.methodBuilder(
+                                    "map"
+                                            + simpleName(sourceTargetPair.getRight())
+                                            + "To"
+                                            + simpleName(sourceTargetPair.getLeft()))
+                                    .addParameter(sourceParameterSpec)
+                                    .addModifiers(PUBLIC)
+                                    .returns(sourceTargetPair.getLeft())
+                                    .addStatement(
+                                            "return $N.map($N, $T.class)",
+                                            injectedConversionServiceFieldSpec,
+                                            sourceParameterSpec,
+                                            rawType(sourceTargetPair.getLeft()))
+                                    .build();
+                        })
+                .collect(toList());
+        mapList.addAll(revMapList);
+        return mapList;
     }
 
     private static ParameterSpec buildSourceParameterSpec(final TypeName sourceClassName) {
@@ -117,7 +143,9 @@ public class ConversionServiceAdapterGenerator {
     }
 
     private static FieldSpec buildConversionServiceFieldSpec() {
-        return FieldSpec.builder(ClassName.get("org.springframework.core.convert", "ConversionService"), "conversionService", PRIVATE, FINAL).build();
+        return FieldSpec.builder(ClassName.get(
+                "org.mapstruct.extensions.spring",
+                "IObjectMapper"), "conversionService", PRIVATE, FINAL).build();
     }
 
     private AnnotationSpec buildGeneratedAnnotationSpec() {

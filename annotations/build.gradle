@@ -3,6 +3,8 @@ apply plugin: "signing"
 
 dependencies {
     implementation libs.spring.core
+    implementation libs.spring.context
+    implementation libs.mapstruct.core
 }
 
 java {

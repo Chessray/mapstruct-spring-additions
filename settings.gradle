@@ -10,6 +10,7 @@ include "examples:classname"
 include "examples:packagename-and-classname"
 include "examples:custom-conversion-service-bean"
 include "examples:simple-springboot"
+include "examples:automap"
 include "docs"
 
 enableFeaturePreview("VERSION_CATALOGS")
